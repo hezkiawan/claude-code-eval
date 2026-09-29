@@ -1,0 +1,9 @@
+{
+  "name": "claude-code-eval-acceptance",
+  "private": true,
+  "type": "module",
+  "description": "Acceptance checkers for the Claude Code evaluation. Run `npm install` once in this folder.",
+  "dependencies": {
+    "firebase-admin": "^14.5.0"
+  }
+}

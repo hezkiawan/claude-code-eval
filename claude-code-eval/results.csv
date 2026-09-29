@@ -1,0 +1,1 @@
+run_id,date,task,config,rep,model,effort,context_start_tokens,input_tokens,output_tokens,cache_read,cache_write,api_eq_usd,wall_time_min,tool_calls,files_read,interventions,approvals,session_pct_used,acceptance_pass,acceptance_total,ui_score,rubric_score,wrote_tests,tests_pass,commits,notes
