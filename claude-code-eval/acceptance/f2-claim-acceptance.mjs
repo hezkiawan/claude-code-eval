@@ -5,7 +5,8 @@
 // The prompt does not fix field names or failure status codes, so this checker is name-agnostic:
 //   - success = any 2xx, failure = any 4xx (5xx counts as a fail, except for race losers, where it's reported)
 //   - agent name = any field on the room doc whose value equals the agent name
-//   - breach flag = any field whose name contains "breach" (true / a timestamp = breached; absent/false/null = not)
+//   - claim time = any date-like field (Timestamp, ISO string, epoch), nested fields included
+//   - breach = a field whose path contains "breach" set to true/a date/"breached", or any value "breached"
 import { parseArgs } from "./lib/args.mjs";
 import { openDb } from "./lib/db.mjs";
 
@@ -32,13 +33,40 @@ function hasValue(obj, want, depth = 0) {
   if (!obj || typeof obj !== "object" || depth > 2) return false;
   return Object.values(obj).some((v) => v === want || (typeof v === "object" && hasValue(v, want, depth + 1)));
 }
+// Walk the room doc (nested objects included) as [path, value] pairs.
+function entries(obj, prefix = "", depth = 0, out = []) {
+  if (!obj || typeof obj !== "object" || obj instanceof Date || depth > 3) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    out.push([path, v]);
+    if (v && typeof v === "object" && !(v instanceof Date)) entries(v, path, depth + 1, out);
+  }
+  return out;
+}
+// A date-like value: Firestore Timestamp (converted to Date), ISO string, or epoch ms/s.
+function asDate(v) {
+  if (v instanceof Date) return v;
+  if (typeof v === "string" && /^\d{4}-\d\d-\d\dT/.test(v)) { const d = new Date(v); return isNaN(d) ? null : d; }
+  if (typeof v === "number" && v > 1e9) return new Date(v > 1e12 ? v : v * 1000);
+  return null;
+}
+// Breached = a field whose path mentions "breach" holding true / a date / "breached",
+// or any field holding the string "breached" (e.g. slaStatus: "breached").
 function breachState(doc) {
-  const vals = Object.entries(doc).filter(([k]) => /breach/i.test(k)).map(([, v]) => v);
-  if (vals.some((v) => v === true || v instanceof Date)) return "breached";
+  for (const [path, v] of entries(doc)) {
+    const s = typeof v === "string" ? v.toLowerCase() : null;
+    if (/breach/i.test(path) && (v === true || asDate(v) || s === "breached" || s === "true")) return "breached";
+    if (s === "breached") return "breached";
+  }
   return "not-breached";
 }
+// Claim time = any date-like field other than createdAt, set within the last 5 minutes.
 function hasClaimTime(doc) {
-  return Object.entries(doc).some(([k, v]) => k !== "createdAt" && v instanceof Date && Math.abs(Date.now() - v.getTime()) < 5 * 60_000);
+  return entries(doc).some(([path, v]) => {
+    if (path === "createdAt") return false;
+    const d = asDate(v);
+    return d && Math.abs(Date.now() - d.getTime()) < 5 * 60_000;
+  });
 }
 
 async function check(id, name, fn) {
