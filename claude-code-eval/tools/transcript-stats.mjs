@@ -10,6 +10,8 @@ const files = process.argv.slice(2);
 if (!files.length) { console.error("usage: node tools/transcript-stats.mjs <session.jsonl> [...]"); process.exit(2); }
 
 const tools = {};
+const skillsUsed = {};
+const agentsUsed = {};
 const filesRead = new Set();
 const filesWritten = new Set();
 const seenMsg = new Set();
@@ -33,6 +35,8 @@ for (const f of files) {
     for (const c of Array.isArray(m.content) ? m.content : []) {
       if (c.type !== "tool_use") continue;
       tools[c.name] = (tools[c.name] ?? 0) + 1;
+      if (c.name === "Skill" && c.input?.skill) skillsUsed[c.input.skill] = (skillsUsed[c.input.skill] ?? 0) + 1;
+      if ((c.name === "Task" || c.name === "Agent") && c.input?.subagent_type) agentsUsed[c.input.subagent_type] = (agentsUsed[c.input.subagent_type] ?? 0) + 1;
       const p = c.input?.file_path ?? c.input?.notebook_path;
       if (p && c.name === "Read") filesRead.add(p);
       if (p && ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(c.name)) filesWritten.add(p);
@@ -43,6 +47,9 @@ for (const f of files) {
 const total = Object.values(tools).reduce((a, b) => a + b, 0);
 console.log(`Tool calls: ${total}`);
 for (const [n, c] of Object.entries(tools).sort((a, b) => b[1] - a[1])) console.log(`  ${n.padEnd(28)} ${c}`);
+const fmt = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} x${v}`).join(", ") || "none";
+console.log(`Skills invoked by the model: ${fmt(skillsUsed)}`);
+console.log(`Subagents launched: ${fmt(agentsUsed)}`);
 console.log(`Unique files read: ${filesRead.size}`);
 console.log(`Unique files written/edited: ${filesWritten.size}`);
 console.log(`Tokens — input: ${usage.input}, output: ${usage.output}, cache read: ${usage.cacheRead}, cache write: ${usage.cacheWrite}`);
