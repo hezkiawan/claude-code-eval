@@ -53,7 +53,8 @@
 2. **Very cheap and fast:** +2% usage, 6.1 minutes, 15 tool calls. Cheaper than its own F1 run.
 3. **Explicit "decisions you may want to change"** list: treated bot rooms as claimable (matches the answer sheet), 5-minute limit duplicated front/back, a room already marked assigned without an agent counts as claimed.
 4. **Honest about what it didn't verify:** didn't run the app (no service account key visible to it) and never saw the UI.
-5. **"Files read: 0"**: it read the codebase entirely through Bash, confirming that Read-tool counts aren't comparable between chefs.
+5. **Small spec deviation:** it keeps the red SLA badge on breached rooms in the **Assigned** tab too. The prompt says unassigned rooms get the badge, and the answer sheet says "Only on unassigned rooms" (C0 never asked). Not caught by the UI checklist; counts under rubric R3 (spec fidelity).
+6. **"Files read: 0"**: it read the codebase entirely through Bash, confirming that Read-tool counts aren't comparable between chefs.
 
 ## Notes on data quality
 - One session, no pre-run sessions counted. Interventions 0, approvals 13.
