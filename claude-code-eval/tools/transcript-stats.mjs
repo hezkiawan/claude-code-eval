@@ -11,12 +11,14 @@ if (!files.length) { console.error("usage: node tools/transcript-stats.mjs <sess
 
 const tools = {};
 const skillsUsed = {};
+const graphifyCmds = {};
 const agentsUsed = {};
 const filesRead = new Set();
 const filesWritten = new Set();
 const seenMsg = new Set();
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 let first = null, last = null;
+let aFirst = null, aLast = null; // first/last assistant message = Claude's working time (excludes setup like /model, /hooks)
 let gateguardLines = 0; // log entries carrying an ECC GateGuard denial
 const gateguardIds = new Set();
 
@@ -31,6 +33,7 @@ for (const f of files) {
     if (e.timestamp) { const t = Date.parse(e.timestamp); if (!first || t < first) first = t; if (!last || t > last) last = t; }
     const m = e.message;
     if (e.type !== "assistant" || !m) continue;
+    if (e.timestamp) { const t = Date.parse(e.timestamp); if (!aFirst || t < aFirst) aFirst = t; if (!aLast || t > aLast) aLast = t; }
     if (m.usage && m.id && !seenMsg.has(m.id)) {
       seenMsg.add(m.id);
       usage.input += m.usage.input_tokens ?? 0;
@@ -41,6 +44,10 @@ for (const f of files) {
     for (const c of Array.isArray(m.content) ? m.content : []) {
       if (c.type !== "tool_use") continue;
       tools[c.name] = (tools[c.name] ?? 0) + 1;
+      if (c.name === "Bash" || c.name === "PowerShell") {
+        const m = String(c.input?.command ?? "").match(/graphify\s+(\w[\w-]*)/);
+        if (m) graphifyCmds[m[1]] = (graphifyCmds[m[1]] ?? 0) + 1;
+      }
       if (c.name === "Skill" && c.input?.skill) skillsUsed[c.input.skill] = (skillsUsed[c.input.skill] ?? 0) + 1;
       if ((c.name === "Task" || c.name === "Agent") && c.input?.subagent_type) agentsUsed[c.input.subagent_type] = (agentsUsed[c.input.subagent_type] ?? 0) + 1;
       const p = c.input?.file_path ?? c.input?.notebook_path;
@@ -57,7 +64,9 @@ const fmt = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
 console.log(`Skills invoked by the model: ${fmt(skillsUsed)}`);
 console.log(`Subagents launched: ${fmt(agentsUsed)}`);
 console.log(`GateGuard denials (ECC): ${gateguardLines}`);
+console.log(`Graphify commands run: ${fmt(graphifyCmds)}`);
 console.log(`Unique files read: ${filesRead.size}`);
 console.log(`Unique files written/edited: ${filesWritten.size}`);
 console.log(`Tokens — input: ${usage.input}, output: ${usage.output}, cache read: ${usage.cacheRead}, cache write: ${usage.cacheWrite}`);
 if (first && last) console.log(`Transcript span: ${((last - first) / 60000).toFixed(1)} min`);
+if (aFirst && aLast) console.log(`Claude working time (first to last reply): ${((aLast - aFirst) / 60000).toFixed(1)} min`);

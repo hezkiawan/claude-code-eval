@@ -1,0 +1,10 @@
+Tool calls: 12
+  Bash                         12
+Skills invoked by the model: none
+Subagents launched: none
+GateGuard denials (ECC): 0
+Graphify commands run: query x1
+Unique files read: 0
+Unique files written/edited: 0
+Tokens — input: 26, output: 6607, cache read: 709266, cache write: 45052
+Transcript span: 4.5 min

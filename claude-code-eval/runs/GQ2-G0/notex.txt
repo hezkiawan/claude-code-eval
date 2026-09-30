@@ -1,0 +1,11 @@
+Start time : 01.11
+
+End Time : 01.12
+
+Before usage : 4%
+
+After usage : 5%
+
+Interventions : 0
+
+Permission approvals : 0

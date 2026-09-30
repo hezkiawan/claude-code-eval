@@ -1,0 +1,96 @@
+❯ Where does this codebase decide whether a user is allowed to read a memo (public, protected, private or space visibility)? List the files and functions involved, both for fetching a single memo and for listing memos. Do not modify any files.
+
+  Searched for 3 patterns, read 3 files
+
+Now the server-side callers.
+
+  Searched for 5 patterns, read 5 files
+
+Memo read access is decided in two places that encode the same rules. Fetching one memo uses a Go function in core/access. Listing memos uses a SQL condition built by each database driver and applied inside the query. I didn't modify any files.
+
+The visibility rules
+
+core/access/memo.go
+- CheckMemoReadContext(ctx MemoReadContext) MemoReadDecision (line 92) is the rule for a single memo. It checks these in order:
+  a. The memo is hidden (not found) if it's missing, its creator is invalid, its visibility value is unknown, or it's a SPACE memo with no space or a deleted space.
+  b. The memo must be
+  c. An instance admin can read any memo that passes steps 1–2.
+  d. An ARCHIVED memo is readable only by its author.
+  e. A share token opens the exact shared memo, but never a SPACE memo.
+  f. Then the visibility level decides:
+
+| Visibility                  | Who can read it                                                                                 |
+|-----------------------------|-------------------------------------------------------------------------------------------------|                 | PUBLIC              if the instance allowsanonymous access; otherwise any active signed-in user |                | PROTECTED           n user                                                     |
+| PRIVATE                     | The active author only                                        |
+| SPACE (store.SpaceAudience) | Active users who are active members of the memo's space. The author gets no automatic access.   |                 
+- Helpers: IsActiveUser, IsInstanceAdmin, MemoReadDecision.Allowed. The types involved are MemoReadContext, MemoReadDecision, MemoReadDenial   MemoReadClass.
+
+core/access/memo_resolve.go gathers the inputs for that check from the store:
+- ResolveMemoReadFacts: works out whether the creator is valid and whether the space exists. These don't depend on who is reading.
+- MemoReadFacts.WithViewer is an active spacemember. It skips the lookup for inactive users and admins.
+- ResolveMemoReadContext: runs the two steps above together.
+
+Fetching a single memo
+
+server/api/v1/memo_service.go
+- GetMemo (line 236) loads the memo by UID without any access filter, then calls checkMemoReadAccess (line 251).
+
+server/api/v1/memo_access.go
+- checkMemoReadAccess (line 43) → buildMemoReadContext →
+  access.CheckMemoReadrror.
+- buildMemoReadContext (line 17) gets the current user via fetchCurrentUser. For anonymous callers it also asks
+  Store.AllowsAnonymoutting.go:256) whetherthe instance allows anonymous reads.
+- buildMemoReadContextForViewer (line 32) calls
+  access.ResolveMemoRe
+- memoAccessDecisionError (line 51) turns the decision into a gRPC error:
+  NotFound, Unauthenti
+
+server/api/v1/memo_share_service.go
+- GetSharedMemo (line s. It rejects archivedand SPACE memos first, then calls buildMemoReadContext(ctx, memo, &ms.MemoID) and CheckMemoReadContext. Every denial is returned as NotFound.
+                                                             Other per-memo checks Access orCheckMemoReadContext. These include memo_service_comments.go (CreateMemoComment, Lin_service.go,memo_attachment_service.go, attachment_service.go, reaction_service.go,
+memo_mention_helpers.guser_service_notifications.go and server/fileserver/fileserver.go (~line 698–721, attachment downloads).
+
+Listing memos
+
+server/api/v1/memo_ser
+- ListMemos (line 82):
+  - Calls resolveMemoAccessScope and returns Unauthenticated if an
+    anonymous caller is.
+  - Sets memoFind.Access = accessScope.
+  - For ARCHIVED listings, it also limits results to the caller's own memos
+    (CreatorID).
+  - It then calls Store.ListMemos. There's no per-row check after the query, so the SQL condition does all the filtering.
+
+server/api/v1/memo_access.go
+- resolveMemoAccessScope (line 79): signed-in users get AllowPublic = true.
+  For anonymous callers decides.
+- newMemoAccessScope (line 67): builds store.MemoAccessScope{UserID, AllowPublic, AllowProtected: user != nil}.
+
+store/memo.go
+- The MemoAccessScope struct (line 175) is the access filter. It's carried on FindMemo.Access (line 84).
+
+Each driver's memo_access.go builds the SQL condition (you get a WHERE clause, not a Go decision):
+- store/db/sqlite/memo_access.go → sqliteMemoAccessPredicate
+- store/db/mysql/memo_access.go → mysqlMemoAccessPredicate
+- store/db/postgres/memo_access.go → postgresMemoAccessPredicate
+
+Taking SQLite as the example, the condition allows:
+- PUBLIC rows if AllowPublic is set;
+- for an active user: PRIVATE rows they created, PROTECTED rows, and SPACE rows where they are an ACTIVE space_member with role ADMIN or USER.
+
+It also enforces the s function: knownvisibility value, valid creator, existing space for SPACE memos, and archived rows visible only to their creator. If no case applies, it returns
+1 = 0 so nothing match
+
+The condition is added to the query in store/db/sqlite/memo.go:177,
+store/db/mysql/memo.gomo.go:172. It's appliedbefore LIMIT/OFFSET, so hidden rows can't change counts or pagination.
+
+Other list-style callers use the same scope: memo_service_comments.go (ListMemoComments), memo_service_converter.go (batchConvertMemoRelations), user_service_stats.go, attachment_service.go, and the attachment drivers'
+attachment.go. server/owPublic only, andcore/notification/email.go builds its own scope.
+
+Things to watch
+
+- The rules exist twice. Changes have to be made in both
+  CheckMemoReadContextL conditions.store/test/memo_access_test.go and core/access/memo_test.go test these separately.
+- Admins are treated d any memo by name, butthe list query has no admin exception, so admins don't see other users' PRIVATE or SPACE memmin comment says this is intended.
+
+✻ Churned for 52s · done 1:12 AM

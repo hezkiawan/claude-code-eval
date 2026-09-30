@@ -1,0 +1,11 @@
+Start time : 1.46
+
+End Time : 1.49
+
+Before usage : 12%
+
+After usage : 13%
+
+Interventions : 0
+
+Permission approvals : 12

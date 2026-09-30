@@ -1,0 +1,109 @@
+❯ Where does this codebase decide whether a user is allowed to read a memo (public, protected, private or space visibility)? List the files and functions involved, both for fetching a single memo and for listing memos. Do not modify any files.
+
+● Bash(cd "D:/File Hezki Kuliah/Enrichment/Helios/task_13_Coding_Agent_ECC/eval-workspace/graphify-test/memos-G1" && graphify query "memo visibility access check publi…)
+Graph: graphify-out/graph.json (13142 nodes) | Traversal: BFS depth
+=2 | Start: ['PROTECTED', 'PUBLIC', 'PRIVATE', 'ACCESS', '.Check()'
+, 'Memo', 'Space', 'Visibility'] | 2097 nodes found
+… +96 lines
+Updated graphify-out\cache\last_query_stamp (+1 -1)
+1790791062.2639518
+1790792384.3009157
+(what this command changed; a convenience view, not a review or audit of the command)
+
+Graph query was too broad; narrowing with grep on the backend.
+
+  Searched for 2 patterns, ran 1 shell command
+
+Key files found. Let me read the core ones.
+
+  Ran 3 shell commands
+
+Now the resolver and the callers in memo_service.go.
+
+  Ran 3 shell commands
+
+Read access is enforcee same rules. Fetching a single memo uses a Go policy function that makes an allow/deny decision. Listing memos uses a SQL WHERE predicate that each database driver adds,
+before LIMIT/OFFSET ary files.
+
+1. Single memo
+
+Core policy: core/access/memo.go
+- CheckMemoReadContextdDecision (L92) is where the decision is made. In order:
+  - It returns NotFounr missing, thevisibility value is unknown, a SPACE memo has no space or its space no longer exists, or the row status is neither NORMAL nor ARCHIVED.       instance admin ad any memo that passesthose checks.
+  - An ARCHIVED memo is readable only by its author.                      share token gran but not to SPACE memos.
+  - Otherwise it depends on visibility:
+    - PUBLIC: readable if anonymous access is allowed or the viewer is an active user; oth
+    - PROTECTED: any active user.
+    - PRIVATE: the author only (Unauthenticated if not signed in,
+      PermissionDenied
+    - SPACE: active users who are active members of the memo's space.
+- Supporting types in the same file: MemoReadContext, MemoReadDecision,
+  MemoReadDenial, Memo
+
+Collecting the inputs: core/access/memo_resolve.go
+- ResolveMemoReadFactsator is valid andwhether the memo's space still exists.
+- MemoReadFacts.WithViewer (L58) adds the viewer and looks up their space membership (GetSpaceMember + Role.IsActiveMember()).                   ResolveMemoReadConte
+                                                                         I adapter: server/ap
+- buildMemoReadContext (L17) gets the current user. If there is none, it asks Store.AllowsAnosetting.go:256) whetheranonymous reads are allowed.
+- buildMemoReadContextForViewer (L32) calls access.ResolveMemoReadContext.
+- checkMemoReadAccess k that the endpointscall.
+- memoAccessDecisionError (L51) turns a denial into a gRPC NotFound, Unauthenticated or PermissionDenied error.                       
+Endpoints that use it:                                             GetMemo: server/api/ at L251.
+- GetSharedMemo: server/api/v1/memo_share_service.go:172. It calls buildMemoReadContexthenCheckMemoReadContext, and returns NotFound on denial.              e same check guard
+  - comments: memo_service_comments.go:43,129
+  - relations: memo_relation_service.go:87,115                       reactions: reactio
+  - memo attachments: memo_attachment_service.go:502, attachment_service.go:655                                        memo_service.go:52
+- Other places call CheckMemoReadContext directly:
+  - server/fileserver/fileserver.go checkAttachmentPermission (L659, decisions at ~L698
+  - memo_mention_helpers.go (canUserAccessMentionContext / canUserAccessMentionMemos)
+  - memo_service_webho
+  - user_service_notifications.go:384
+
+2. Listing memos
+
+Scope type: store/memo.go
+- MemoAccessScope{Usered} (L175) is carried on FindMemo.Access (L84).
+
+Building the scope: server/api/v1/memo_access.go
+- resolveMemoAccessScope (L79): for a signed-in user, AllowPublic is true.
+  For an anonymous calnymousAccess settingdecides.
+- newMemoAccessScope (L67) sets AllowProtected to true only when a user is
+  signed in, and fills
+
+Endpoint: ListMemos (server/api/v1/memo_service.go:82)
+- It resolves the scop
+- It rejects an anonymous caller if the instance doesn't allow anonymous
+  access.
+- For State_ARCHIVED it limits results to CreatorID = currentUser.
+- A filter that names eMemoFilterForUser,which calls validateFilterSpaceAccess (server/api/v1/filter_access.go:31). That requires active membership through resolveWritaeMember(memo_access.go:115,141).
+
+The SQL predicate, one per driver:
+- store/db/sqlite/memo_access.go sqliteMemoAccessPredicate, applied in
+  store/db/sqlite/memo
+- store/db/mysql/memo_access.go mysqlMemoAccessPredicate, applied in
+  store/db/mysql/memo.
+- store/db/postgres/memo_access.go postgresMemoAccessPredicate, applied in
+  store/db/postgres/me
+
+Each predicate allows a row if:
+- it is PUBLIC (when A
+- the viewer is an active user and one of these holds:
+  - the memo is PRIVATE and the viewer is its creator,
+  - the memo is PROTEC
+  - the memo is SPACE and the viewer has an ACTIVE space_member row with role ADMIN or USER.
+
+It also requires the same validity conditions as the single-memo check
+(known visibility, valr SPACE memos, NORMALstatus or ARCHIVED-and-owned). If nothing is allowed, it becomes 1 = 0.
+
+Other places that use the same listing scope:
+- listing comments: me
+- memo_service_converter.go:232
+- user stats: user_service_stats.go:65,193
+- attachment listing:
+- memo import: user_service_memo_import.go:423
+
+One difference to be aware of: an instance admin bypasses the audience
+rules for single-memo ewMemoAccessScope has no admin case, so feeds never show other users' PRIVATE memos, as the comment
+on IsInstanceAdmin say
+
+The graphify query frod a subgraph here, so Ifound these through targeted searches and reading the code.

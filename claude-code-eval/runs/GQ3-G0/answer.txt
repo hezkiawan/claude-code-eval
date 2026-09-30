@@ -1,0 +1,103 @@
+❯ If we change the signature of Store.ApplyMemoMutation (in store/memo_attachment.go), which functions in this codebase would need to be updated or re-tested? List every direct caller, and the API endpoints or features that reach it indirectly. Do not modify any files.
+
+  Searched for 2 patterns, ran 1 shell command
+
+Now the second-level callers: createMemoWithMutation, applyMemoMutation (API helper), and CreateMemoComment.
+
+  Searched for 1 pattern, ran 3 shell commands
+
+Nothing was modified. Everything below comes from grepping for ApplyMemoMutation and then following each caller up to the RPC that reaches it.
+
+Direct callers of Store.ApplyMemoMutation (store/memo_attachment.go:90)
+
+Production code: three call sites
+
+┌────────────────────────┬─────────────────────────────┐
+│         Caller         │          Location           │
+├────────────────────────┼─────────────────────────────┤
+│ Store.CreateMemoCommen │ store/memo.go:201           │
+│ t                      │                             │
+├────────────────────────┼─────────────────────────────┤
+│ APIV1Service.createMem │ server/api/v1/memo_attachme │
+│ oWithMutation (private │ nt_service.go:179           │
+│  helper)               │                             │
+├────────────────────────┼─────────────────────────────┤
+│ APIV1Service.applyMemo │ server/api/v1/memo_attachme │
+│ Mutation (private      │ nt_service.go:249           │
+│ helper)                 │
+└────────────────────────┴─────────────────────────────┘
+
+Test code calling it directly (update these too)
+- store/memo_attachment_test.go:126, 155
+- store/test/aines 204–687)
+- store/test/memo_relation_policy_test.go:46, 60, 97
+- store/test/m0 calls fromline 139 to line 536. This is the main test suite for
+  this functio
+
+Related, same name but a different method:
+Store.ApplyMems.driver.ApplyMemoMutation(ctx, mutation) (line 165). That driver method is declared in the Driver interface at
+store/driver.g
+- store/db/sqlite/memo_attachment.go:15
+- store/db/mysql/memo_attachment.go:15
+- store/db/pos
+
+Changing only the Store method's signature leaves these
+alone. If you  gets passeddown, all three drivers and the interface have to change together.
+
+Indirect callers (second hop)
+
+Through create
+- APIV1Service.CreateMemo: server/api/v1/memo_service.go:50
+- APIV1Service.CreateMemoComment: server/api/v1/memo_service_comments.go:64
+- memoImporter.createMemo:
+  server/api/v:245
+
+Through applyMemoMutation:
+- APIV1Serviceserver/api/v1/memo_service.go:471
+- APIV1Service.SetMemoAttachments:
+  server/api/v52
+- APIV1Service.SetMemoRelations: server/api/v1/memo_relation_service.go:43
+- memoImportermo_import.go:305
+- memoImporter.applyRelations: user_service_memo_import.go:625
+
+The three memoImporter methods are driven by APIV1Service.ImportMemoExport
+(user_service_user_service_memo_transfer.go:156 calls for the ImportMemos
+RPC.
+
+Through Store.ion code callsit. The API's CreateMemoComment uses createMemoWithMutation
+instead. The svily as a testfixture in about 12 files under store/test/, plus server/api/v1/test/attachment_service_test.go:433 and
+memo_service_bests would onlybreak if CreateMemoComment's own signature changes.
+
+API endpoints and features that reach it
+
+RPC: MemoServi
+HTTP (gRPC-Gateway): POST /api/v1/memos
+Feature: Creatd references
+────────────────────────────────────────
+RPC: MemoServi
+HTTP (gRPC-Gateway): PATCH /api/v1/{memo.name=memos/*}
+Feature: Edit a memo's content, visibility, Space, archive
+state and atta
+────────────────────────────────────────
+RPC: MemoService.SetMemoAttachments
+HTTP (gRPC-Gateway): PATCH
+/api/v1/{name=memos/*}/attachments
+Feature: Repla
+────────────────────────────────────────
+RPC: MemoServi
+HTTP (gRPC-Gateway): PATCH /api/v1/{name=memos/*}/relations
+Feature: Replans
+────────────────────────────────────────
+RPC: MemoService.CreateMemoComment
+HTTP (gRPC-Gatos/*}/comments
+Feature: Comments and replies
+────────────────────────────────────────
+RPC: UserServi
+HTTP (gRPC-Gateway): POST /api/v1/{name=users/*}:importMemos                  Feature: Memo LACE orDUPLICATE
+(UI: web/src/components/Settings/MemoExportSection.t
+Each RPC is reachable three ways: Connect (server/api/v1/connect_services.go), gRPC-Gateway REthe MCP serveres CreateMemo,UpdateMemo, CreateMemoComment, SetMemoAttachments and SetMemoRelations as tools.                          
+What to re-test
+                                                    - go test -v . throughTestContainers and the mutation, relation and attachment suites.                                           - go test -v -service teststhat use these RPCs: memo_service_test.go, attachment_service_test.go, memo_export_test.go (i  memo_move_tet.go,user_notification_test.go, user_service_delete_test.go, sse_service_test.go, fileserver_test.go,            memo_create_memo_comment_relations_test.go.                   
+A signature change should stay inside the store and server/api/v1 md/, orserver/mcp calls it directly.
+
+✻ Sautéed for 44s · done 1:29 AM

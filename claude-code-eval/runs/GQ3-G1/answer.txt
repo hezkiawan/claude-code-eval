@@ -1,0 +1,79 @@
+❯ If we change the signature of Store.ApplyMemoMutation (in store/memo_attachment.go), which functions in this codebase would need to be updated or re-tested? List every direct caller, and the API endpoints or features that reach it indirectly. Do not modify any files.
+
+  Ran 2 shell commands
+
+● Bash(cd "D:/File Hezki Kuliah/Enrichment/Helios/task_13_Coding_Agent_ECC/eval-workspace/graphify-test/memos-g1" && graphify explain "store/memo_attachment.go::ApplyM…)
+Node: .ApplyMemoMutation()
+  ID:        store_store_applymemomutation
+  Source:    store/memo_attachment.go L90
+… +19 lines
+Updated graphify-out\cache\last_query_stamp (+1 -1)
+1790792384.3009157
+1790793298.6761193
+(what this command changed; a convenience view, not a review or audit of the command)
+
+  Ran 4 shell commands
+
+I've traced it through the API layer. One last check to confirm the import entrypoint and look for other internal callers, such as MCP.
+
+  Ran 1 shell command
+
+Changing the signature of Store.ApplyMemoMutation (store/memo_attachment.go:90) means updating three production call sites in two files, plus several test files. Six API endpoints  modify any files.
+
+Note that graphify explain only showed what the function calls, not what calls it, so I found the callers by searching the Go code.
+
+Direct callers (productio
+
+Caller: APIV1Service.createMemoWithMutation
+Location: server/api/v1/memo_attachment_service.go:179
+Notes: Creates a memo, binds its attachments and writes its relations in one
+transaction.
+────────────────────────────────────────
+Caller: APIV1Service.appl
+Location: server/api/v1/memo_attachment_service.go:249
+Notes: Handles every updaents and relations.
+────────────────────────────────────────
+Caller: Store.CreateMemoComment
+Location: store/memo.go:2
+Notes: Only tests call it. The API's comment endpoint goes through
+createMemoWithMutation instead.
+                                                                            lated, but not callers:s an ApplyMemoMutationmethod (store/driver.go:29), implemented in                                 ore/db/{sqlite,postgreshe store method forwardsto it at store/memo_attachment.go:165. If you only change the Store method, rwarding line needs adjfects the driver method,all three database implementations must change too.                         
+Indirect callers → API endpoints
+                                                                            rough createMemoWithMut
+- CreateMemo (memo_service.go:50) → POST /api/v1/memos
+- CreateMemoComment (memo_service_comments.go:64) → POST /api/v1/{memos/*}/comments
+- memoImporter.createMemo (user_service_memo_import.go:245) → memo import (sbelow)
+                                                                            rough applyMemoMutation
+- UpdateMemo (memo_service.go:471) → PATCH /api/v1/{memo.name=memos/*}. It only goes this way when content, attachments or relations change. Otherwise it calls Store.UpdateMemo.
+- SetMemoAttachments (memo_attachment_service.go:52) → PATCH /api/v1/{memos/*}/attachments
+- SetMemoRelations (memo_relation_service.go:43) → PATCH /api/v1/{memos/*}/relations
+- memoImporter.replaceMemo:305) andmemoImporter.applyRelations (:625) → memo import
+
+Memo import chain: ImportMemos → finishMemoImport
+(user_service_memo_transf → importMemo → createMemo / replaceMemo / applyRelations. The endpoint is POST /api/v1/{users/*}:importMemos.
+
+All six endpoints are served over Connect (server/api/v1/connect_services.go: lines 170, 369, 393, 409, 425, 440) and over the gRPC-gateway REST routes.
+
+User-facing features affected: creating, editing and commenting on memos; setting a memo's attachments; memo links and relations; and importing an
+archive. The pinned attacbership checks run insidethe mutation, so they're affected too.
+
+Tests to update or re-run
+
+Call it directly:
+- store/memo_attachment_t
+- store/test/memo_mutation_test.go (about 20 calls)
+- store/test/attachment_test.go (9 calls)
+- store/test/memo_relatio
+
+Reach it through the API or Store.CreateMemoComment, so re-run:
+- server/api/v1/test/: memo_service_test.go, attachment_service_test.go,
+  memo_export_test.go, meervice_test.go,user_notification_test.go, user_service_delete_test.go, reaction_service_test.go
+- server/api/v1/: memo_co_create_helpers_test.go,sse_service_test.go
+- server/fileserver/fileserver_test.go
+- store/test/: attachment_access_test.go, memo_access_test.go,
+  memo_delete_policy_testo,reaction_policy_test.go, space_test.go, user_delete_test.go,
+  memo_relation_test.go
+
+In practice, run go test nst all three databasedrivers.
+
+✻ Cogitated for 1m 0s · done 1:35 AM
