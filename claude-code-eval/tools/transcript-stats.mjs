@@ -17,11 +17,17 @@ const filesWritten = new Set();
 const seenMsg = new Set();
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 let first = null, last = null;
+let gateguardLines = 0; // log entries carrying an ECC GateGuard denial
+const gateguardIds = new Set();
 
 for (const f of files) {
   for (const line of fs.readFileSync(f, "utf8").split(/\r?\n/)) {
     if (!line.trim()) continue;
     let e; try { e = JSON.parse(line); } catch { continue; }
+    if (e.type !== "assistant" && line.includes("[Fact-Forcing Gate]")) {
+      const id = e.uuid ?? line.length + ":" + (e.timestamp ?? "");
+      if (!gateguardIds.has(id)) { gateguardIds.add(id); gateguardLines++; }
+    }
     if (e.timestamp) { const t = Date.parse(e.timestamp); if (!first || t < first) first = t; if (!last || t > last) last = t; }
     const m = e.message;
     if (e.type !== "assistant" || !m) continue;
@@ -50,6 +56,7 @@ for (const [n, c] of Object.entries(tools).sort((a, b) => b[1] - a[1])) console.
 const fmt = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} x${v}`).join(", ") || "none";
 console.log(`Skills invoked by the model: ${fmt(skillsUsed)}`);
 console.log(`Subagents launched: ${fmt(agentsUsed)}`);
+console.log(`GateGuard denials (ECC): ${gateguardLines}`);
 console.log(`Unique files read: ${filesRead.size}`);
 console.log(`Unique files written/edited: ${filesWritten.size}`);
 console.log(`Tokens — input: ${usage.input}, output: ${usage.output}, cache read: ${usage.cacheRead}, cache write: ${usage.cacheWrite}`);
