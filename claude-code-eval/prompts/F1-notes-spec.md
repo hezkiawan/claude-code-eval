@@ -25,7 +25,7 @@ Frontend (Next.js):
 - Notes with isImportant = true are highlighted with a yellow accent banner.
 - Below the list, an inline form: a text input, an "Important" checkbox, and a submit button. After a successful submit the new note appears in the list without reloading the page and the input clears.
 - Show the backend's error message if a submit fails.
-- Follow the project's frontend design system rules.
+- Follow the project's frontend design system. 
 ---8<---
 
 ## Entry points per configuration
