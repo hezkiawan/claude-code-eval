@@ -3,7 +3,7 @@
 Evaluation notebook for the **Claude Code plugin evaluation** for the Helios team:
 **Everything Claude Code (ECC)**, **Matt Pocock skills** and **Graphify**, compared against plain Claude Code.
 
-- **Full report:** [docs/EVALUATION-REPORT.md](docs/EVALUATION-REPORT.md)
+- **Full report:** [docs/EVALUATION-REPORT.md](claude-code-eval/docs/EVALUATION-REPORT.md)
 - **Test bed app (mini-kouventa) + code of every run:** [hezkiawan/claude-code-evaluation-demo](https://github.com/hezkiawan/claude-code-evaluation-demo) (branches `run/<RUN-ID>`)
 
 Author: Hezki (technical research intern) · Sept–Oct 2026 · Controlled case study (n = 1 per setup).
@@ -22,21 +22,25 @@ Author: Hezki (technical research intern) · Sept–Oct 2026 · Controlled case 
 
 ## What's in this repo
 
+All evaluation material lives in the [`claude-code-eval/`](claude-code-eval/) folder. The test bed app and the code of every run live in the separate [claude-code-evaluation-demo](https://github.com/hezkiawan/claude-code-evaluation-demo) repo, so `mini-kouventa/`, `runs/` and `graphify-test/` at the top level are local working folders and are not tracked here.
+
 | Path | Contents |
 |---|---|
-| [`docs/EVALUATION-REPORT.md`](docs/EVALUATION-REPORT.md) | **Main report**: background, tools, both evaluations, analysis, recommendation |
-| [`docs/recommendation.md`](docs/recommendation.md) | Detailed workflow evaluation and recommendation (Q1, Q2) |
-| [`docs/graphify-findings.md`](docs/graphify-findings.md) | Detailed Graphify evaluation (Q3) |
-| [`docs/code-analysis.md`](docs/code-analysis.md) | Code review of all 6 workflow runs |
-| [`docs/phase1-tool-profiles.md`](docs/phase1-tool-profiles.md) | Tool profiles + ECC ↔ Matt Pocock overlap map |
-| [`docs/run-protocol.md`](docs/run-protocol.md) | How each setup was run (workflow per setup, rules) |
-| [`docs/graphify-protocol.md`](docs/graphify-protocol.md) | How the Graphify test was run |
-| [`prompts/`](prompts/) | Frozen ticket prompts + answer sheets (F1, F2) and Graphify questions with answer keys (`G-queries.md`) |
-| [`acceptance/`](acceptance/) | Automated API checkers (F1: 14 checks, F2: 11 checks incl. race test) + UI checklists |
-| [`runs/`](runs/) | One folder per run: run cards (F1/F2), Graphify answers + stats (GQ*), `G-scores.md` scoreboard |
-| [`results.csv`](results.csv) | Raw metrics per workflow run |
-| [`rubric.md`](rubric.md) | Scoring rubric |
-| [`tools/transcript-stats.mjs`](tools/transcript-stats.mjs) | Counts tool calls, tokens, skills, subagents, GateGuard blocks, Graphify commands and working time from a Claude Code session transcript |
+| [`claude-code-eval/docs/EVALUATION-REPORT.md`](claude-code-eval/docs/EVALUATION-REPORT.md) | **Main report**: background, tools, both evaluations, analysis, recommendation |
+| [`claude-code-eval/docs/recommendation.md`](claude-code-eval/docs/recommendation.md) | Detailed workflow evaluation and recommendation (Q1, Q2) |
+| [`claude-code-eval/docs/graphify-findings.md`](claude-code-eval/docs/graphify-findings.md) | Detailed Graphify evaluation (Q3) |
+| [`claude-code-eval/docs/code-analysis.md`](claude-code-eval/docs/code-analysis.md) | Code review of all 6 workflow runs |
+| [`claude-code-eval/docs/phase1-tool-profiles.md`](claude-code-eval/docs/phase1-tool-profiles.md) | Tool profiles + ECC ↔ Matt Pocock overlap map |
+| [`claude-code-eval/docs/run-protocol.md`](claude-code-eval/docs/run-protocol.md) | How each setup was run (workflow per setup, rules) |
+| [`claude-code-eval/docs/graphify-protocol.md`](claude-code-eval/docs/graphify-protocol.md) | How the Graphify test was run |
+| [`claude-code-eval/prompts/`](claude-code-eval/prompts/) | Frozen ticket prompts + answer sheets (F1, F2) and Graphify questions with answer keys (`G-queries.md`) |
+| [`claude-code-eval/acceptance/`](claude-code-eval/acceptance/) | Automated API checkers (F1: 14 checks, F2: 11 checks incl. race test) + UI checklists |
+| [`claude-code-eval/runs/`](claude-code-eval/runs/) | One folder per run: run cards (F1/F2), Graphify answers + stats (GQ*), `G-scores.md` scoreboard |
+| [`claude-code-eval/results.csv`](claude-code-eval/results.csv) | Raw metrics per workflow run |
+| [`claude-code-eval/rubric.md`](claude-code-eval/rubric.md) | Scoring rubric |
+| [`claude-code-eval/docs/Claude Code Plugin Evaluation.pptx`](<claude-code-eval/docs/Claude Code Plugin Evaluation.pptx>) | Presentation slides |
+| [`RESET_PROMPT.md`](RESET_PROMPT.md) | Prompt used to reset the test bed to a clean baseline (Day 0) |
+| [`claude-code-eval/tools/transcript-stats.mjs`](claude-code-eval/tools/transcript-stats.mjs) | Counts tool calls, tokens, skills, subagents, GateGuard blocks, Graphify commands and working time from a Claude Code session transcript |
 
 ---
 
@@ -88,19 +92,19 @@ graphify claude install      # G1/G2 only
    git worktree add ../runs/<RUN-ID> -b run/<RUN-ID> <eval-base-v2 | base-C1 | base-C2>
    ```
 2. Copy `serviceAccountKey.json` (backend) and `.env.local` (frontend) into the run folder. Never commit them.
-3. Follow [`docs/run-protocol.md`](docs/run-protocol.md) for the setup's workflow; answer questions only from the answer sheet.
+3. Follow [`docs/run-protocol.md`](claude-code-eval/docs/run-protocol.md) for the setup's workflow; answer questions only from the answer sheet.
 4. Check the result:
    ```bash
-   cd acceptance && npm install
+   cd claude-code-eval/acceptance && npm install
    node f1-notes-acceptance.mjs --key <path/to/serviceAccountKey.json> [--api http://localhost:8080]
    node f2-claim-acceptance.mjs --key <path/to/serviceAccountKey.json> [--api http://localhost:8080]
    ```
 5. Measure the session:
    ```bash
-   node tools/transcript-stats.mjs ~/.claude/projects/<folder>/<session>.jsonl
+   node claude-code-eval/tools/transcript-stats.mjs ~/.claude/projects/<folder>/<session>.jsonl
    ```
 
 ---
 
 ## Limitations
-n = 1 per setup; one model; one small test app and one open-source repo; the recommended combination was not run as a whole. See §11 of the [report](docs/EVALUATION-REPORT.md).
+n = 1 per setup; one model; one small test app and one open-source repo; the recommended combination was not run as a whole. See §11 of the [report](claude-code-eval/docs/EVALUATION-REPORT.md).
